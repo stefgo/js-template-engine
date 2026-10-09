@@ -1,0 +1,82 @@
+name: Check Code
+
+# Every check in one place. The release workflow calls this workflow via
+# workflow_call instead of running the steps a second time -- otherwise the two
+# copies drift apart.
+on:
+    # main and dev are covered by release.yml, which calls this workflow itself --
+    # naming them here as well would run the checks twice for every push.
+    push:
+        branches-ignore: ["main", "dev"]
+    pull_request:
+    workflow_call:
+    workflow_dispatch:
+
+# Three pushes in a row to the same branch make the first two runs pointless.
+# github.workflow is the *caller's* name when this workflow is reached through
+# workflow_call, so a run from release.yml lands in its own group and can
+# neither cancel a plain branch run of these checks nor be cancelled by one.
+concurrency:
+    group: ci-${{ github.workflow }}-${{ github.ref }}
+    # Not cancelling on main and dev. On those refs these checks only ever run as
+    # the called job of release.yml, and release.yml sets cancel-in-progress:
+    # false for a good reason -- a cancelled checks job would produce exactly the
+    # half-finished run it avoids there.
+    cancel-in-progress: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/dev' }}
+
+jobs:
+    checks:
+        name: Lint, test and build
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v7
+              with:
+                  # commitlint needs the commit range of a pull request.
+                  fetch-depth: 0
+
+            - name: Set up Node
+              uses: actions/setup-node@v7
+              with:
+                  node-version-file: .nvmrc
+                  cache: npm
+
+            # Node 22 ships npm 10, the lockfile is written with npm 11, and the two do
+            # not always agree about optional peers -- npm ci can then fail under the
+            # version that did not write the lockfile. packageManager in package.json
+            # is the single source of the version.
+            - name: Pin npm
+              run: npm i -g "npm@$(node -p "require('./package.json').packageManager.split('@')[1]")"
+
+            - name: Install dependencies
+              run: npm ci
+
+            # The commit message is the only input semantic-release derives the next
+            # version from. Locally .githooks/commit-msg checks it; this step covers
+            # the commits of a pull request, which never passed through that hook.
+            - name: Commit messages
+              if: github.event_name == 'pull_request'
+              env:
+                  BASE_SHA: ${{ github.event.pull_request.base.sha }}
+                  HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+              run: npx commitlint --from "$BASE_SHA" --to "$HEAD_SHA" --verbose
+
+            # tsc over src including the tests, then ESLint.
+            - name: Lint
+              run: npm run lint
+
+            - name: Test
+              run: npm test
+
+            - name: Build
+              run: npm run build
+
+            # After the build, because it needs the output: checks that every path
+            # package.json promises to the outside (main, types, files, exports)
+            # exists in it. Lint and test import from src/, so nothing else says
+            # whether dist/ still matches package.json.
+            - name: Check package entry points
+              run: npm run check:entry-points
