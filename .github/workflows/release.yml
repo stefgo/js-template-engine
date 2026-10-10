@@ -1,17 +1,29 @@
-name: Publish Release
+name: Create Release
 
-# semantic-release derives the next version from the commit types since the last
-# tag, writes CHANGELOG.md and package.json, publishes the package to GitHub
-# Packages and pushes the tag.
+# A release is an action, not a side effect of pushing: a version is published
+# only from here, only on request -- a release on main, a beta (x.y.z-beta.n,
+# on the beta dist-tag) on dev. A push to either branch only runs the checks.
 #
-# main gives a stable release, dev a prerelease on the beta dist-tag. A push to
-# either of those two branches is therefore a publication -- which is why
-# .githooks/pre-push allows pushing from them alone.
+# What a release is, how its version is found and how its notes are put
+# together is the same for every stefgo project and lives in
+# https://github.com/stefgo/release-workflows. This file offers the inputs and
+# says what is particular here: the checks, and that the package is published.
 on:
-    push:
-        branches:
-            - main
-            - dev
+    workflow_dispatch:
+        inputs:
+            dry_run:
+                description: "Dry run -- shows the next version and its notes, changes nothing"
+                type: boolean
+                default: true
+            bump:
+                description: "Version step"
+                type: choice
+                options:
+                    - auto
+                    - patch
+                    - minor
+                    - major
+                default: auto
 
 # Two runs at once would read the same last tag and compute the same next
 # version. Not cancelling: a release that dies after the publish leaves the tag
@@ -21,7 +33,15 @@ concurrency:
     cancel-in-progress: false
 
 jobs:
+    # In front of the checks: the branch, the hand-written notes in
+    # .release/next.md and the state of dev against main are known at dispatch.
+    preflight:
+        uses: stefgo/release-workflows/.github/workflows/preflight.yml@v1
+        permissions:
+            contents: read
+
     checks:
+        needs: preflight
         uses: ./.github/workflows/ci.yml
         # Stated explicitly although these are the defaults: without this block the
         # called workflow inherits the caller's permissions, and the caller has
@@ -29,45 +49,19 @@ jobs:
         permissions:
             contents: read
 
+    # No build step of its own: prepublishOnly builds during npm publish, and
+    # the checks job has already run the build as a check.
     release:
-        name: Tag, publish and write the changelog
         needs: checks
-        runs-on: ubuntu-latest
+        uses: stefgo/release-workflows/.github/workflows/release.yml@v1
         permissions:
             contents: write # tag, release, CHANGELOG/package.json commit
             packages: write # publish to GitHub Packages
             issues: write # @semantic-release/github comments on issues ...
             pull-requests: write # ... and on pull requests during a release
-        steps:
-            - name: Checkout repository
-              uses: actions/checkout@v7
-              with:
-                  # semantic-release needs the full history and all tags to find the
-                  # last release. persist-credentials: false, because the git plugin
-                  # sets the remote itself using GITHUB_TOKEN.
-                  fetch-depth: 0
-                  persist-credentials: false
-
-            # registry-url writes the .npmrc that npm publish authenticates with,
-            # reading the token from NODE_AUTH_TOKEN below.
-            - name: Set up Node
-              uses: actions/setup-node@v7
-              with:
-                  node-version-file: .nvmrc
-                  cache: npm
-                  registry-url: "https://npm.pkg.github.com"
-
-            # See ci.yml: npm 10 and npm 11 do not write the same lockfile.
-            - name: Pin npm
-              run: npm i -g "npm@$(node -p "require('./package.json').packageManager.split('@')[1]")"
-
-            - name: Install dependencies
-              run: npm ci
-
-            # No build step of its own: prepublishOnly builds during npm publish, and
-            # the checks job has already run the build as a check.
-            - name: Release
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-                  NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-              run: npx semantic-release
+        with:
+            dry_run: ${{ inputs.dry_run }}
+            bump: ${{ inputs.bump }}
+            # A library: a BREAKING CHANGE footer raises the major position.
+            breaking: major
+            npm_publish: true

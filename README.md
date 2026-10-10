@@ -158,9 +158,18 @@ npm run build     # dist/
 ```
 
 Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/); a hook
-checks them. They are what a release is made of: a push to `main` publishes a release, a push
-to `dev` a prerelease on the `beta` dist-tag, and the version is derived from the commit
-types since the last tag. A breaking change is marked with a `BREAKING CHANGE:` footer.
+checks them. A breaking change is marked with a `BREAKING CHANGE:` footer.
+
+A release is started by hand with the *Create Release* workflow: on `main` for a release, on
+`dev` for a prerelease on the `beta` dist-tag. The version is derived from the commit types
+since the last tag, or is the step chosen at the start; the dry run, which is the default,
+shows the version and the complete notes and changes nothing.
+
+Every release is described by hand in [.release/next.md](.release/next.md): what is new and
+what an upgrade needs. The text is placed above the generated list of commits, and a release
+without it is refused. `dev` is merged into `main` with its history, not squashed or rebased.
+The workflow itself is shared, see
+[release-workflows](https://github.com/stefgo/release-workflows).
 
 ## License
 

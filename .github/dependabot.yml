@@ -9,15 +9,15 @@ version: 2
 # merges the pull request once its checks are green.
 #
 # npm is deliberately absent. The engine has no runtime dependencies: what npm
-# installs is the toolchain -- TypeScript, Vitest, semantic-release -- and none of it
+# installs is the toolchain -- TypeScript, Vitest, commitlint -- and none of it
 # reaches the published package. Security-relevant npm updates still arrive on their
 # own: Dependabot security updates need no configuration file.
 updates:
     - package-ecosystem: github-actions
       directory: "/"
-      # dev, not main. A push to main publishes a stable release, a push to dev only a
-      # beta prerelease. An action bump therefore lands first where a failure reaches
-      # nobody who installed the package.
+      # dev, not main. main is what a stable release is made from, dev only a beta.
+      # An action bump therefore lands first where a failure reaches nobody who
+      # installed the package.
       target-branch: dev
       schedule:
           interval: monthly

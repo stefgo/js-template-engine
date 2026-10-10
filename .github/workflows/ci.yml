@@ -4,10 +4,9 @@ name: Check Code
 # workflow_call instead of running the steps a second time -- otherwise the two
 # copies drift apart.
 on:
-    # main and dev are covered by release.yml, which calls this workflow itself --
-    # naming them here as well would run the checks twice for every push.
+    # Every branch, main and dev included. A push to those two releases nothing
+    # -- release.yml is started by hand -- so this is the only check it gets.
     push:
-        branches-ignore: ["main", "dev"]
     pull_request:
     workflow_call:
     workflow_dispatch:
@@ -18,9 +17,9 @@ on:
 # neither cancel a plain branch run of these checks nor be cancelled by one.
 concurrency:
     group: ci-${{ github.workflow }}-${{ github.ref }}
-    # Not cancelling on main and dev. On those refs these checks only ever run as
-    # the called job of release.yml, and release.yml sets cancel-in-progress:
-    # false for a good reason -- a cancelled checks job would produce exactly the
+    # Not cancelling on main and dev. On those refs these checks also run as the
+    # called job of release.yml, and release.yml sets cancel-in-progress: false
+    # for a good reason -- a cancelled checks job would produce exactly the
     # half-finished run it avoids there.
     cancel-in-progress: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/dev' }}
 

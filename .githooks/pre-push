@@ -1,10 +1,7 @@
 #!/bin/bash
 
 # Only the two long-lived branches may be pushed; topic branches stay local.
-#
-# More hangs on that than tidiness: release.yml releases on every push to main or dev
-# (dev as a beta prerelease). A topic branch pushed by accident produces none, a dev
-# pushed by accident very much does.
+# A push releases nothing; release.yml is started by hand.
 current_branch=$(git symbolic-ref --short HEAD)
 
 case "$current_branch" in
