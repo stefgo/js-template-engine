@@ -1,6 +1,6 @@
 {
     "name": "@stefgo/js-template-engine",
-    "version": "0.0.0",
+    "version": "1.0.0",
     "description": "JSON templates with {{path}} placeholders, filters, conditions and loops, filled in on the parsed tree",
     "license": "MIT",
     "private": false,
